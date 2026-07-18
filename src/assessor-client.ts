@@ -77,16 +77,29 @@ interface RateLimitConfig {
   windowMs: number;
 }
 
+interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+  minDelayMs: number; // forced delay between requests
+}
+
 export class YorkCountyAssessorClient {
   private client: AxiosInstance;
   private cache: NodeCache;
   private requestTimestamps: number[] = [];
   private rateLimitConfig: RateLimitConfig;
+  private lastRequestTime: number = 0;
+  private totalRequests: number = 0;
   private readonly CLIENT_ID = "cdb4f45e-00ca-4489-b1ef-977743800d05";
 
   constructor(
-    rateLimitConfig: RateLimitConfig = { maxRequests: 20, windowMs: 60000 }
+    rateLimitConfig: Partial<RateLimitConfig> = {}
   ) {
+    this.rateLimitConfig = {
+      maxRequests: rateLimitConfig.maxRequests ?? 5,
+      windowMs: rateLimitConfig.windowMs ?? 60000,
+      minDelayMs: rateLimitConfig.minDelayMs ?? 500,
+    };
     this.client = axios.create({
       timeout: 15000,
       headers: {
@@ -104,11 +117,18 @@ export class YorkCountyAssessorClient {
     });
 
     this.cache = new NodeCache({ stdTTL: 3600, checkperiod: 600 });
-    this.rateLimitConfig = rateLimitConfig;
   }
 
   private async checkRateLimit(): Promise<void> {
     const now = Date.now();
+
+    // Enforce inter-request delay
+    const sinceLastRequest = now - this.lastRequestTime;
+    if (sinceLastRequest < this.rateLimitConfig.minDelayMs) {
+      const waitMs = this.rateLimitConfig.minDelayMs - sinceLastRequest;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
     this.requestTimestamps = this.requestTimestamps.filter(
       (ts) => now - ts < this.rateLimitConfig.windowMs
     );
@@ -117,11 +137,34 @@ export class YorkCountyAssessorClient {
       const oldestRequest = this.requestTimestamps[0];
       const waitTime = this.rateLimitConfig.windowMs - (now - oldestRequest);
       throw new Error(
-        `Rate limit exceeded. Wait ${Math.ceil(waitTime / 1000)} seconds.`
+        `Rate limit: ${this.rateLimitConfig.maxRequests} req/${this.rateLimitConfig.windowMs / 1000}s. Wait ${Math.ceil(waitTime / 1000)}s.`
       );
     }
 
-    this.requestTimestamps.push(now);
+    this.requestTimestamps.push(Date.now());
+    this.lastRequestTime = Date.now();
+    this.totalRequests++;
+  }
+
+  getRateLimitStatus(): {
+    remaining: number;
+    limit: number;
+    windowSeconds: number;
+    minDelayMs: number;
+    totalRequests: number;
+  } {
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter(
+      (ts) => now - ts < this.rateLimitConfig.windowMs
+    );
+
+    return {
+      remaining: this.rateLimitConfig.maxRequests - this.requestTimestamps.length,
+      limit: this.rateLimitConfig.maxRequests,
+      windowSeconds: this.rateLimitConfig.windowMs / 1000,
+      minDelayMs: this.rateLimitConfig.minDelayMs,
+      totalRequests: this.totalRequests,
+    };
   }
 
   async autocomplete(query: string): Promise<AutocompleteResult[]> {

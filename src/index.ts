@@ -103,6 +103,19 @@ server.registerTool(
   }
 );
 
+// ── 7. get_rate_limit ──
+server.registerTool(
+  "get_rate_limit",
+  {
+    description: "Get current rate limit status. Shows remaining requests, limit, window, and total requests made in this session. Use before making batch queries to avoid hitting limits.",
+    inputSchema: {},
+  },
+  async () => {
+    const status = assessor.getRateLimitStatus();
+    return { content: [{ type: "text", text: JSON.stringify(status, null, 2) }] };
+  }
+);
+
 // ── Helpers ──
 function formatRecords(records: PropertyRecord[]): string {
   if (!records || records.length === 0) {
