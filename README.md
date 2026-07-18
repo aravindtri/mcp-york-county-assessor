@@ -14,7 +14,7 @@ MCP server for querying York County, South Carolina property tax assessor databa
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_USER/mcp-york-county-assessor.git
+git clone https://github.com/aravindtri/mcp-york-county-assessor.git
 cd mcp-york-county-assessor
 npm install
 npm run build
