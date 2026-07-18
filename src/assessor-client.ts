@@ -98,7 +98,7 @@ export class YorkCountyAssessorClient {
     this.rateLimitConfig = {
       maxRequests: rateLimitConfig.maxRequests ?? 5,
       windowMs: rateLimitConfig.windowMs ?? 60000,
-      minDelayMs: rateLimitConfig.minDelayMs ?? 500,
+      minDelayMs: rateLimitConfig.minDelayMs ?? 1000,
     };
     this.client = axios.create({
       timeout: 15000,
